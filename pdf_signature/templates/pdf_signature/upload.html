@@ -1,0 +1,114 @@
+{% extends 'pdf_signature/base.html' %}
+
+{% block title %}Sign PDF - PDF Signature Tool{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h2 class="mb-4">Sign PDF Document</h2>
+        
+        <div class="card">
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data" id="pdf-upload-form">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.pdf_file.id_for_label }}" class="form-label">
+                            Select PDF File
+                        </label>
+                        {{ form.pdf_file }}
+                        {% if form.pdf_file.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.pdf_file.errors.0 }}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">{{ form.pdf_file.help_text }}</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Signature Type</label>
+                        <div class="form-check">
+                            {{ form.signature_type.0 }}
+                        </div>
+                        <div class="form-check">
+                            {{ form.signature_type.1 }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        {{ form.apply_to_all_pages }}
+                        <label class="form-check-label" for="{{ form.apply_to_all_pages.id_for_label }}">
+                            {{ form.apply_to_all_pages.label }}
+                        </label>
+                        <div class="form-text">{{ form.apply_to_all_pages.help_text }}</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary" id="sign-button" disabled>
+                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            Sign PDF
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        {% if download_available %}
+        <div class="mt-4">
+            <a href="{% url 'pdf_signature:download' %}" class="btn btn-success">
+                <i class="bi bi-download"></i> Download Signed PDF
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                Signature Preview
+            </div>
+            <div class="card-body">
+                <div class="signature-preview" id="signature-preview">
+                    <p class="text-muted text-center my-5">
+                        Your signature will appear here after processing.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pdfFileInput = document.getElementById('{{ form.pdf_file.id_for_label }}');
+    const signButton = document.getElementById('sign-button');
+    const form = document.getElementById('pdf-upload-form');
+    const spinner = signButton.querySelector('.spinner-border');
+    
+    // Enable/disable sign button based on file selection
+    pdfFileInput.addEventListener('change', function() {
+        signButton.disabled = !this.files || this.files.length === 0;
+    });
+    
+    // Show loading state when form is submitted
+    form.addEventListener('submit', function() {
+        signButton.disabled = true;
+        spinner.classList.remove('d-none');
+        signButton.innerHTML = 'Signing...';
+    });
+    
+    // Show file name when selected
+    pdfFileInput.addEventListener('change', function() {
+        const fileName = this.files[0]?.name || 'No file chosen';
+        const label = this.nextElementSibling;
+        if (label && label.classList.contains('form-text')) {
+            label.textContent = fileName;
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,563 @@
+{% extends 'base.html' %}
+
+{% block title %}Batch PDF Digital Signature - Digital Workspace{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="fas fa-file-signature text-primary me-2"></i>Batch PDF Digital Signature</h2>
+                    <p class="text-muted">Upload and digitally sign multiple PDF documents at once</p>
+                </div>
+                <div>
+                    <a href="{% url 'pdf_signature:batch_jobs' %}" class="btn btn-info me-2">
+                        <i class="fas fa-list me-2"></i>View Batch Jobs
+                    </a>
+                    <a href="{% url 'pdf_signature:home' %}" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-file-signature me-2"></i>Single PDF
+                    </a>
+                    <a href="{% url 'dashboard:home' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+            <hr>
+        </div>
+    </div>
+    
+    <!-- Batch Upload Section -->
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-upload me-2"></i>Batch PDF Upload & Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <form id="batch-pdf-upload-form" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- File Selection -->
+                        <div class="row mb-4">
+                            <div class="col-md-8">
+                                <label for="pdf-files" class="form-label">Select PDF Files</label>
+                                <input type="file" class="form-control" id="pdf-files" name="pdf_files" 
+                                       accept=".pdf" multiple required>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Select up to 20 PDF files (max 10MB each). Hold Ctrl/Cmd to select multiple files.
+                                </div>
+                                <div id="file-list" class="mt-2"></div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Selected Files</h6>
+                                        <div id="selected-files-count" class="text-muted">No files selected</div>
+                                        <div id="total-size" class="text-muted small"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Save Location -->
+                        <div class="row mb-4">
+                            <div class="col-md-8">
+                                <label for="save-location" class="form-label">Save Location</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="save-location" name="save_location"
+                                           placeholder="Leave empty to use default location or enter full path">
+                                    <button type="button" class="btn btn-outline-secondary" id="browse-folder-btn">
+                                        <i class="fas fa-folder-open me-1"></i>Browse
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger" id="clear-location-btn" style="display: none;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Choose a custom folder to save signed PDFs, enter a full path (e.g., C:\MyFolder), or leave empty for default location.
+                                    <br><small class="text-muted">Relative paths will be created in your Documents folder.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Naming Convention -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="naming-convention" class="form-label">File Naming Convention</label>
+                                <select class="form-select" id="naming-convention" name="naming_convention">
+                                    <option value="signed_{original_name}">signed_[original_name]</option>
+                                    <option value="{original_name}_signed">[original_name]_signed</option>
+                                    <option value="signed_{timestamp}_{original_name}">signed_[timestamp]_[original_name]</option>
+                                    <option value="{user}_{timestamp}_{original_name}">[user]_[timestamp]_[original_name]</option>
+                                    <option value="custom">Custom naming pattern</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="custom-naming-pattern" class="form-label">Custom Pattern</label>
+                                <input type="text" class="form-control" id="custom-naming-pattern" 
+                                       name="custom_naming_pattern" placeholder="e.g., signed_{original_name}_{date}" 
+                                       style="display: none;">
+                                <div class="form-text" id="custom-pattern-help" style="display: none;">
+                                    Available variables: {original_name}, {user}, {timestamp}, {date}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Signature Options -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="apply-to-all-pages" 
+                                           name="apply_to_all_pages" checked>
+                                    <label class="form-check-label" for="apply-to-all-pages">
+                                        Apply digital signature to all pages
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    When enabled, the cryptographic signature covers all pages of each PDF document.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary btn-lg" id="batch-upload-btn">
+                                    <i class="fas fa-signature me-2"></i>Sign All PDFs
+                                </button>
+                                <button type="button" class="btn btn-secondary ms-2" id="reset-form-btn">
+                                    <i class="fas fa-undo me-2"></i>Reset Form
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Section -->
+    <div class="row mt-4" id="progress-section" style="display: none;">
+        <div class="col-lg-10 mx-auto">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Processing Batch</h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             id="batch-progress-bar" role="progressbar" style="width: 0%">
+                            <span id="progress-text">0%</span>
+                        </div>
+                    </div>
+                    <div id="batch-status" class="text-muted">Initializing batch processing...</div>
+                    <div id="file-results" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="row mt-4" id="results-section" style="display: none;">
+        <div class="col-lg-10 mx-auto">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Batch Processing Complete</h5>
+                </div>
+                <div class="card-body">
+                    <div id="batch-summary" class="mb-3"></div>
+                    <div id="download-links"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Certificate Information -->
+    <div class="row mt-4">
+        <div class="col-lg-10 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-certificate me-2"></i>Certificate Information</h6>
+                </div>
+                <div class="card-body">
+                    <pre class="small text-muted">{{ certificate_info }}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Folder Selection Modal -->
+<div class="modal fade" id="folderSelectionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Select Save Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><i class="fas fa-info-circle text-info me-2"></i>Choose a folder where the signed PDFs will be saved.</p>
+
+                <!-- Modern File System Access API button (for supported browsers) -->
+                <button type="button" class="btn btn-primary me-2" id="modern-folder-picker" style="display: none;">
+                    <i class="fas fa-folder-open me-2"></i>Choose Save Folder
+                </button>
+
+                <!-- Fallback folder picker (webkitdirectory) -->
+                <input type="file" id="folder-picker" webkitdirectory directory style="display: none;">
+                <button type="button" class="btn btn-primary" id="trigger-folder-picker">
+                    <i class="fas fa-folder-open me-2"></i>Browse for Folder
+                </button>
+
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-lightbulb me-1"></i>
+                        <strong>Note:</strong> You'll select a folder and the system will save signed PDFs to that location.
+                    </small>
+                </div>
+
+                <div id="selected-folder-display" class="mt-3" style="display: none;">
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Save location selected:</strong> <span id="folder-path"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-folder-btn" disabled>Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// File selection handling
+document.getElementById('pdf-files').addEventListener('change', function(e) {
+    const files = Array.from(e.target.files);
+    updateFileList(files);
+});
+
+function updateFileList(files) {
+    const fileListDiv = document.getElementById('file-list');
+    const countDiv = document.getElementById('selected-files-count');
+    const sizeDiv = document.getElementById('total-size');
+    
+    if (files.length === 0) {
+        fileListDiv.innerHTML = '';
+        countDiv.textContent = 'No files selected';
+        sizeDiv.textContent = '';
+        return;
+    }
+    
+    let totalSize = 0;
+    let fileListHtml = '<div class="mt-2"><small class="text-muted">Selected files:</small><ul class="list-unstyled small">';
+    
+    files.forEach((file, index) => {
+        totalSize += file.size;
+        const sizeStr = formatFileSize(file.size);
+        fileListHtml += `<li><i class="fas fa-file-pdf text-danger me-1"></i>${file.name} (${sizeStr})</li>`;
+    });
+    
+    fileListHtml += '</ul></div>';
+    fileListDiv.innerHTML = fileListHtml;
+    countDiv.textContent = `${files.length} file(s) selected`;
+    sizeDiv.textContent = `Total size: ${formatFileSize(totalSize)}`;
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Naming convention handling
+document.getElementById('naming-convention').addEventListener('change', function(e) {
+    const customPattern = document.getElementById('custom-naming-pattern');
+    const customHelp = document.getElementById('custom-pattern-help');
+    
+    if (e.target.value === 'custom') {
+        customPattern.style.display = 'block';
+        customHelp.style.display = 'block';
+        customPattern.required = true;
+    } else {
+        customPattern.style.display = 'none';
+        customHelp.style.display = 'none';
+        customPattern.required = false;
+    }
+});
+
+// Folder selection - Enhanced implementation
+let selectedSaveLocation = '';
+
+// Check if modern File System Access API is supported
+if ('showDirectoryPicker' in window) {
+    document.getElementById('modern-folder-picker').style.display = 'inline-block';
+    document.getElementById('trigger-folder-picker').style.display = 'none';
+}
+
+document.getElementById('browse-folder-btn').addEventListener('click', function() {
+    const modal = new bootstrap.Modal(document.getElementById('folderSelectionModal'));
+    modal.show();
+});
+
+// Modern File System Access API (Chrome 86+, Edge 86+)
+document.getElementById('modern-folder-picker').addEventListener('click', async function() {
+    try {
+        const directoryHandle = await window.showDirectoryPicker({
+            mode: 'readwrite'
+        });
+
+        // Get the directory name and path
+        const folderName = directoryHandle.name;
+        selectedSaveLocation = folderName; // Store for backend processing
+
+        document.getElementById('folder-path').textContent = folderName;
+        document.getElementById('folder-path').setAttribute('data-full-path', folderName);
+        document.getElementById('folder-path').setAttribute('data-directory-handle', JSON.stringify({name: folderName}));
+        document.getElementById('selected-folder-display').style.display = 'block';
+        document.getElementById('confirm-folder-btn').disabled = false;
+
+        console.log('Selected save folder (modern API):', folderName);
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Error selecting folder:', error);
+            alert('Error selecting folder. Please try again.');
+        }
+    }
+});
+
+// Fallback folder picker for older browsers
+document.getElementById('trigger-folder-picker').addEventListener('click', function() {
+    document.getElementById('folder-picker').click();
+});
+
+document.getElementById('folder-picker').addEventListener('change', function(e) {
+    if (e.target.files.length > 0) {
+        // Get the first file to extract folder information
+        const firstFile = e.target.files[0];
+        const relativePath = firstFile.webkitRelativePath;
+
+        // Extract the folder path by getting the directory part
+        const pathParts = relativePath.split('/');
+        pathParts.pop(); // Remove the filename
+        const selectedFolderName = pathParts[pathParts.length - 1] || pathParts[0];
+
+        // Try to get the actual file path to determine the real folder path
+        // Note: Due to browser security, we can't get the full system path directly
+        // We'll work with what we have and let the backend handle path resolution
+        let actualFolderPath = '';
+
+        // For modern browsers, try to get path from File API
+        if (firstFile.path) {
+            // Electron or similar environment
+            const filePath = firstFile.path;
+            actualFolderPath = filePath.substring(0, filePath.lastIndexOf('/'));
+        } else if (firstFile.webkitRelativePath) {
+            // Standard browser - we'll send the relative path and let backend resolve it
+            // The backend will need to handle this appropriately
+            actualFolderPath = selectedFolderName; // Just the folder name for now
+        }
+
+        // Display the selected folder name
+        document.getElementById('folder-path').textContent = selectedFolderName;
+        document.getElementById('folder-path').setAttribute('data-full-path', actualFolderPath);
+        document.getElementById('folder-path').setAttribute('data-folder-name', selectedFolderName);
+        document.getElementById('selected-folder-display').style.display = 'block';
+        document.getElementById('confirm-folder-btn').disabled = false;
+
+        console.log('Selected folder name:', selectedFolderName);
+        console.log('Folder path for backend:', actualFolderPath);
+    }
+});
+
+document.getElementById('confirm-folder-btn').addEventListener('click', function() {
+    const folderElement = document.getElementById('folder-path');
+    const folderName = folderElement.textContent;
+    const fullPath = folderElement.getAttribute('data-full-path') || folderName;
+
+    // Set the save location - this will be processed by the backend
+    document.getElementById('save-location').value = fullPath;
+    document.getElementById('save-location').setAttribute('title', `Save location: ${fullPath}`);
+    document.getElementById('clear-location-btn').style.display = 'inline-block';
+
+    // Store the selected location for form submission
+    selectedSaveLocation = fullPath;
+
+    const modal = bootstrap.Modal.getInstance(document.getElementById('folderSelectionModal'));
+    modal.hide();
+
+    console.log('Confirmed save location:', fullPath);
+
+    // Show success message
+    const saveLocationInput = document.getElementById('save-location');
+    saveLocationInput.classList.add('is-valid');
+    setTimeout(() => {
+        saveLocationInput.classList.remove('is-valid');
+    }, 2000);
+});
+
+document.getElementById('clear-location-btn').addEventListener('click', function() {
+    document.getElementById('save-location').value = '';
+    this.style.display = 'none';
+});
+
+// Show/hide clear button when user types in the save location field
+document.getElementById('save-location').addEventListener('input', function() {
+    const clearBtn = document.getElementById('clear-location-btn');
+    if (this.value.trim()) {
+        clearBtn.style.display = 'inline-block';
+    } else {
+        clearBtn.style.display = 'none';
+    }
+});
+
+// Form submission
+document.getElementById('batch-pdf-upload-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData();
+    const files = document.getElementById('pdf-files').files;
+    
+    if (files.length === 0) {
+        showError('Please select at least one PDF file');
+        return;
+    }
+    
+    // Add files
+    for (let i = 0; i < files.length; i++) {
+        formData.append('pdf_files', files[i]);
+    }
+    
+    // Add other form data
+    formData.append('save_location', document.getElementById('save-location').value);
+    formData.append('naming_convention', document.getElementById('naming-convention').value);
+    formData.append('custom_naming_pattern', document.getElementById('custom-naming-pattern').value);
+    formData.append('apply_to_all_pages', document.getElementById('apply-to-all-pages').checked);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    // Show progress section
+    document.getElementById('progress-section').style.display = 'block';
+    document.getElementById('results-section').style.display = 'none';
+    
+    // Disable form
+    document.getElementById('batch-upload-btn').disabled = true;
+    
+    fetch('{% url "pdf_signature:batch_upload" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showBatchResults(data);
+        } else {
+            showError(data.error || 'An error occurred during batch processing');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showError('An error occurred during batch processing');
+    })
+    .finally(() => {
+        document.getElementById('batch-upload-btn').disabled = false;
+    });
+});
+
+function showBatchResults(data) {
+    // Update progress to 100%
+    const progressBar = document.getElementById('batch-progress-bar');
+    progressBar.style.width = '100%';
+    progressBar.classList.remove('progress-bar-animated');
+    document.getElementById('progress-text').textContent = '100%';
+    
+    // Show results
+    document.getElementById('results-section').style.display = 'block';
+    
+    const summary = document.getElementById('batch-summary');
+    summary.innerHTML = `
+        <div class="row">
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="text-primary">${data.total_files}</h4>
+                    <small class="text-muted">Total Files</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="text-success">${data.successful_files}</h4>
+                    <small class="text-muted">Successful</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="text-danger">${data.failed_files}</h4>
+                    <small class="text-muted">Failed</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="text-info">${Math.round((data.successful_files / data.total_files) * 100)}%</h4>
+                    <small class="text-muted">Success Rate</small>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Show download links for successful files
+    const downloadLinks = document.getElementById('download-links');
+    let linksHtml = '<h6>Download Signed PDFs:</h6><div class="list-group">';
+    
+    data.processed_files.forEach(file => {
+        if (file.status === 'success') {
+            const filename = file.signed_filename || file.original_filename;
+            linksHtml += `
+                <a href="/pdf-signature/download/${filename}/" class="list-group-item list-group-item-action">
+                    <i class="fas fa-download me-2"></i>${file.original_filename}
+                    <small class="text-muted">(${file.pages} pages)</small>
+                    <span class="badge bg-success ms-2">Signed</span>
+                </a>
+            `;
+        } else {
+            linksHtml += `
+                <div class="list-group-item list-group-item-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>${file.original_filename}
+                    <span class="badge bg-danger ms-2">Failed</span>
+                    <small class="d-block text-muted">${file.error || 'Unknown error'}</small>
+                </div>
+            `;
+        }
+    });
+    
+    linksHtml += '</div>';
+    downloadLinks.innerHTML = linksHtml;
+}
+
+// Reset form
+document.getElementById('reset-form-btn').addEventListener('click', function() {
+    document.getElementById('batch-pdf-upload-form').reset();
+    document.getElementById('file-list').innerHTML = '';
+    document.getElementById('selected-files-count').textContent = 'No files selected';
+    document.getElementById('total-size').textContent = '';
+    document.getElementById('progress-section').style.display = 'none';
+    document.getElementById('results-section').style.display = 'none';
+    document.getElementById('clear-location-btn').style.display = 'none';
+    document.getElementById('custom-naming-pattern').style.display = 'none';
+    document.getElementById('custom-pattern-help').style.display = 'none';
+});
+
+function showError(message) {
+    // You can implement a toast notification or alert here
+    alert('Error: ' + message);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,583 @@
+{% extends 'base.html' %}
+
+{% block title %}PDF Digital Signature - Digital Workspace{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="fas fa-file-signature text-primary me-2"></i>PDF Digital Signature</h2>
+                    <p class="text-muted">Upload and digitally sign your PDF documents</p>
+                </div>
+                <div>
+                    <a href="{% url 'pdf_signature:verify' %}" class="btn btn-success me-2">
+                        <i class="fas fa-shield-check me-2"></i>Verify PDF Signature
+                    </a>
+                    <a href="{% url 'dashboard:home' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+            <hr>
+        </div>
+    </div>
+    
+    <!-- Upload Section -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-upload me-2"></i>Upload PDF Document(s)</h5>
+                        <div class="btn-group" role="group" aria-label="Processing mode">
+                            <input type="radio" class="btn-check" name="processing_mode" id="single_mode" value="single" checked>
+                            <label class="btn btn-outline-light btn-sm" for="single_mode">
+                                <i class="fas fa-file me-1"></i>Single File
+                            </label>
+
+                            <input type="radio" class="btn-check" name="processing_mode" id="batch_mode" value="batch">
+                            <label class="btn btn-outline-light btn-sm" for="batch_mode">
+                                <i class="fas fa-files me-1"></i>Batch Processing
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form id="pdf-upload-form" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <!-- Single File Upload -->
+                        <div class="mb-4" id="single-file-section">
+                            <label for="pdf-file" class="form-label">Select PDF File</label>
+                            <div class="input-group">
+                                <input type="file" class="form-control" id="pdf-file" name="pdf_file" accept=".pdf" required>
+                                <button type="submit" class="btn btn-primary" id="upload-btn">
+                                    <i class="fas fa-signature me-2"></i>Sign PDF
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Only PDF files are accepted. Maximum file size: 10MB per file
+                            </div>
+                        </div>
+
+                        <!-- Batch File Upload -->
+                        <div class="mb-4" id="batch-file-section" style="display: none;">
+                            <label for="pdf-files" class="form-label">Select Multiple PDF Files</label>
+                            <div class="input-group">
+                                <input type="file" class="form-control" id="pdf-files" name="pdf_files" accept=".pdf" multiple>
+                                <button type="submit" class="btn btn-primary" id="batch-upload-btn">
+                                    <i class="fas fa-signature me-2"></i>Sign All PDFs
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Select multiple PDF files. Maximum file size: 10MB per file
+                            </div>
+                        </div>
+
+                        <!-- Multi-page signature option -->
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="apply-to-all-pages"
+                                       name="apply_to_all_pages" checked>
+                                <label class="form-check-label" for="apply-to-all-pages">
+                                    <strong>Add signature appearance to all pages</strong>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                When enabled, adds visual signature appearance to each page, then applies one cryptographic signature to the entire document. This ensures signature integrity while providing visual signatures on all pages. When disabled, applies a single cryptographic signature with appearance on the first page only.
+                            </div>
+                        </div>
+
+
+
+                        <!-- Custom Save Location -->
+                        <div class="mb-3">
+                            <label for="save-location" class="form-label">
+                                <i class="fas fa-folder-open me-2"></i>Custom Save Location (Optional)
+                            </label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="save-location" name="save_location"
+                                       placeholder="Default location will be used or enter full path">
+                                <button type="button" class="btn btn-outline-secondary" id="browse-folder-btn">
+                                    <i class="fas fa-folder-open me-1"></i>Browse
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" id="clear-location-btn"
+                                        style="display: none;">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Choose a custom folder to save signed PDFs, enter a full path (e.g., C:\MyFolder), or leave empty for default location.
+                                <br><small class="text-muted">Relative paths will be created in your Documents folder.</small>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <!-- Progress Bar -->
+                    <div id="upload-progress" class="mb-3" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <small class="text-muted">Processing your PDF...</small>
+                    </div>
+                    
+                    <!-- Result Section -->
+                    <div id="result-section" style="display: none;">
+                        <div class="alert alert-success">
+                            <!-- Content will be dynamically generated by JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <!-- Error Section -->
+                    <div id="error-section" style="display: none;">
+                        <div class="alert alert-danger">
+                            <h6><i class="fas fa-exclamation-triangle me-2"></i>Error</h6>
+                            <p id="error-message" class="mb-0"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Information Section -->
+    <div class="row mt-5">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="fas fa-info-circle me-2"></i>How it Works</h6>
+                </div>
+                <div class="card-body">
+                    <ol class="mb-0">
+                        <li>Select a PDF file from your computer</li>
+                        <li>Click "Sign PDF" to upload and process</li>
+                        <li>The system adds a cryptographic digital signature with X.509 certificate</li>
+                        <li>Download your cryptographically signed PDF document</li>
+                        <li>Use "Verify PDF Signature" to validate any signed document</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="fas fa-shield-alt me-2"></i>Security Features</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li>Industry-standard cryptographic digital signatures with PKCS#7 format</li>
+                        <li>X.509 certificate-based authentication with proper certificate chain</li>
+                        <li>Timestamp with Chennai GMT (+05:30) timezone</li>
+                        <li>Signer identity: "M.ARUL" with enhanced signature appearance</li>
+                        <li>Tamper detection and document integrity verification</li>
+                        <li>PDF/A compliance for maximum compatibility</li>
+                        <li>Compatible with Adobe Acrobat, Microsoft Edge, and standard PDF viewers</li>
+                        <li>Fixed signature verification issues for proper validation</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Folder Selection Modal -->
+<div class="modal fade" id="folderSelectionModal" tabindex="-1" aria-labelledby="folderSelectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="folderSelectionModalLabel">
+                    <i class="fas fa-folder-open me-2"></i>Select Save Location
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><i class="fas fa-info-circle text-info me-2"></i>Choose a folder where the signed PDF will be saved.</p>
+
+                <!-- Modern File System Access API button (for supported browsers) -->
+                <button type="button" class="btn btn-primary me-2" id="modern-folder-picker" style="display: none;">
+                    <i class="fas fa-folder-open me-2"></i>Choose Save Folder
+                </button>
+
+                <!-- Fallback folder picker (webkitdirectory) -->
+                <input type="file" id="folder-picker" webkitdirectory directory style="display: none;">
+                <button type="button" class="btn btn-primary" id="trigger-folder-picker">
+                    <i class="fas fa-folder-open me-2"></i>Browse for Folder
+                </button>
+
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-lightbulb me-1"></i>
+                        <strong>Note:</strong> You'll select a folder and the system will save the signed PDF to that location.
+                    </small>
+                </div>
+
+                <div id="selected-folder-display" class="mt-3" style="display: none;">
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Save location selected:</strong> <span id="folder-path"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-folder-btn" disabled>
+                    <i class="fas fa-check me-2"></i>Confirm Location
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Processing mode and folder selection functionality
+let selectedSaveLocation = '';
+let currentProcessingMode = 'single';
+
+// Handle processing mode switching
+document.querySelectorAll('input[name="processing_mode"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        currentProcessingMode = this.value;
+
+        if (this.value === 'single') {
+            document.getElementById('single-file-section').style.display = 'block';
+            document.getElementById('batch-file-section').style.display = 'none';
+            document.getElementById('pdf-file').required = true;
+            document.getElementById('pdf-files').required = false;
+        } else {
+            document.getElementById('single-file-section').style.display = 'none';
+            document.getElementById('batch-file-section').style.display = 'block';
+            document.getElementById('pdf-file').required = false;
+            document.getElementById('pdf-files').required = true;
+        }
+    });
+});
+
+// Handle signature option interactions
+document.addEventListener('DOMContentLoaded', function() {
+    const applyToAllPagesCheckbox = document.getElementById('apply-to-all-pages');
+});
+
+// Check if modern File System Access API is supported
+if ('showDirectoryPicker' in window) {
+    document.getElementById('modern-folder-picker').style.display = 'inline-block';
+    document.getElementById('trigger-folder-picker').style.display = 'none';
+}
+
+document.getElementById('browse-folder-btn').addEventListener('click', function() {
+    const modal = new bootstrap.Modal(document.getElementById('folderSelectionModal'));
+    modal.show();
+});
+
+// Modern File System Access API (Chrome 86+, Edge 86+)
+document.getElementById('modern-folder-picker').addEventListener('click', async function() {
+    try {
+        const directoryHandle = await window.showDirectoryPicker({
+            mode: 'readwrite'
+        });
+
+        const folderName = directoryHandle.name;
+        selectedSaveLocation = folderName;
+
+        document.getElementById('folder-path').textContent = folderName;
+        document.getElementById('folder-path').setAttribute('data-full-path', folderName);
+        document.getElementById('selected-folder-display').style.display = 'block';
+        document.getElementById('confirm-folder-btn').disabled = false;
+
+        console.log('Selected save folder (modern API):', folderName);
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Error selecting folder:', error);
+            alert('Error selecting folder. Please try again.');
+        }
+    }
+});
+
+// Fallback folder picker for older browsers
+document.getElementById('trigger-folder-picker').addEventListener('click', function() {
+    document.getElementById('folder-picker').click();
+});
+
+document.getElementById('folder-picker').addEventListener('change', function(e) {
+    if (e.target.files.length > 0) {
+        const firstFile = e.target.files[0];
+        const relativePath = firstFile.webkitRelativePath;
+        const pathParts = relativePath.split('/');
+        pathParts.pop(); // Remove filename
+        const selectedFolderName = pathParts[pathParts.length - 1] || pathParts[0];
+
+        selectedSaveLocation = selectedFolderName;
+
+        document.getElementById('folder-path').textContent = selectedFolderName;
+        document.getElementById('folder-path').setAttribute('data-full-path', selectedFolderName);
+        document.getElementById('selected-folder-display').style.display = 'block';
+        document.getElementById('confirm-folder-btn').disabled = false;
+
+        console.log('Selected folder name:', selectedFolderName);
+    }
+});
+
+document.getElementById('confirm-folder-btn').addEventListener('click', function() {
+    const folderElement = document.getElementById('folder-path');
+    const folderName = folderElement.textContent;
+    const fullPath = folderElement.getAttribute('data-full-path') || folderName;
+
+    document.getElementById('save-location').value = fullPath;
+    document.getElementById('save-location').setAttribute('title', `Save location: ${fullPath}`);
+    document.getElementById('clear-location-btn').style.display = 'inline-block';
+
+    selectedSaveLocation = fullPath;
+
+    const modal = bootstrap.Modal.getInstance(document.getElementById('folderSelectionModal'));
+    modal.hide();
+
+    console.log('Confirmed save location:', fullPath);
+
+    const saveLocationInput = document.getElementById('save-location');
+    saveLocationInput.classList.add('is-valid');
+    setTimeout(() => {
+        saveLocationInput.classList.remove('is-valid');
+    }, 2000);
+});
+
+document.getElementById('clear-location-btn').addEventListener('click', function() {
+    document.getElementById('save-location').value = '';
+    document.getElementById('save-location').removeAttribute('title');
+    document.getElementById('clear-location-btn').style.display = 'none';
+    selectedSaveLocation = '';
+    console.log('Cleared save location');
+});
+
+// Show/hide clear button when user types in the save location field
+document.getElementById('save-location').addEventListener('input', function() {
+    const clearBtn = document.getElementById('clear-location-btn');
+    if (this.value.trim()) {
+        clearBtn.style.display = 'inline-block';
+    } else {
+        clearBtn.style.display = 'none';
+    }
+});
+
+// PDF upload form submission
+document.getElementById('pdf-upload-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const formData = new FormData();
+
+    if (currentProcessingMode === 'single') {
+        // Single file processing
+        const fileInput = document.getElementById('pdf-file');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            showError('Please select a PDF file');
+            return;
+        }
+
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            showError('Please select a valid PDF file');
+            return;
+        }
+
+        formData.append('pdf_file', file);
+    } else {
+        // Batch processing
+        const filesInput = document.getElementById('pdf-files');
+        const files = filesInput.files;
+
+        if (!files || files.length === 0) {
+            showError('Please select at least one PDF file');
+            return;
+        }
+
+        // Validate all files
+        for (let i = 0; i < files.length; i++) {
+            if (!files[i].name.toLowerCase().endsWith('.pdf')) {
+                showError(`File "${files[i].name}" is not a PDF file`);
+                return;
+            }
+        }
+
+        // Append all files
+        for (let i = 0; i < files.length; i++) {
+            formData.append('pdf_files', files[i]);
+        }
+    }
+
+    // Common form data
+    formData.append('apply_to_all_pages', document.getElementById('apply-to-all-pages').checked);
+
+    // Get save location from input field (could be manually entered or set by folder picker)
+    const saveLocationValue = document.getElementById('save-location').value.trim();
+    formData.append('save_location', saveLocationValue);
+
+    formData.append('processing_mode', currentProcessingMode);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+    // Show progress
+    showProgress();
+
+    fetch('{% url "pdf_signature:upload" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideProgress();
+
+        if (data.success) {
+            if (currentProcessingMode === 'single') {
+                showSuccess(data);
+            } else {
+                showBatchSuccess(data);
+            }
+        } else {
+            showError(data.error || 'An error occurred while processing the PDF(s)');
+        }
+    })
+    .catch(error => {
+        hideProgress();
+        showError('Network error: ' + error.message);
+    });
+});
+
+function showProgress() {
+    document.getElementById('upload-progress').style.display = 'block';
+    document.getElementById('result-section').style.display = 'none';
+    document.getElementById('error-section').style.display = 'none';
+    document.getElementById('upload-btn').disabled = true;
+}
+
+function hideProgress() {
+    document.getElementById('upload-progress').style.display = 'none';
+    document.getElementById('upload-btn').disabled = false;
+}
+
+function showSuccess(data) {
+    const currentDate = new Date().toLocaleString();
+    const resultSection = document.getElementById('result-section');
+    const alertDiv = resultSection.querySelector('.alert');
+
+    if (data.download_url) {
+        // File saved to default location - show download link
+        alertDiv.innerHTML = `
+            <h6><i class="fas fa-check-circle me-2"></i>PDF Signed Successfully!</h6>
+            <p class="mb-2">Your PDF has been digitally signed and is ready for download.</p>
+            <ul class="mb-3">
+                <li><strong>Filename:</strong> ${data.filename}</li>
+                <li><strong>Signature:</strong> M.ARUL</li>
+                <li><strong>Date:</strong> ${currentDate}</li>
+                <li><strong>Timezone:</strong> Chennai GMT (+05:30)</li>
+                <li><strong>Multi-page Signing:</strong> ${data.multi_page_signing ? 'Enabled' : 'Disabled'}</li>
+                ${data.file_size ? `<li><strong>File Size:</strong> ${(data.file_size / 1024).toFixed(1)} KB</li>` : ''}
+            </ul>
+            <a href="${data.download_url}" class="btn btn-success">
+                <i class="fas fa-download me-2"></i>Download Signed PDF
+            </a>
+        `;
+    } else if (data.save_location) {
+        // File saved to custom location - show location info
+        alertDiv.innerHTML = `
+            <h6><i class="fas fa-check-circle me-2"></i>PDF Signed Successfully!</h6>
+            <p class="mb-2">Your PDF has been digitally signed and saved to your specified location.</p>
+            <ul class="mb-3">
+                <li><strong>Filename:</strong> ${data.filename}</li>
+                <li><strong>Signature:</strong> M.ARUL</li>
+                <li><strong>Date:</strong> ${currentDate}</li>
+                <li><strong>Timezone:</strong> Chennai GMT (+05:30)</li>
+                <li><strong>Multi-page Signing:</strong> ${data.multi_page_signing ? 'Enabled' : 'Disabled'}</li>
+                ${data.file_size ? `<li><strong>File Size:</strong> ${(data.file_size / 1024).toFixed(1)} KB</li>` : ''}
+                <li><strong>Save Location:</strong> <code>${data.save_location}</code></li>
+            </ul>
+            <div class="alert alert-info mt-3">
+                <i class="fas fa-info-circle me-2"></i>
+                The signed PDF has been automatically saved to your specified location. You can find it at the path shown above.
+                <strong>No download button is provided because the file is saved outside the web application's directory.</strong>
+            </div>
+        `;
+    } else {
+        // Fallback for unexpected cases
+        alertDiv.innerHTML = `
+            <h6><i class="fas fa-check-circle me-2"></i>PDF Signed Successfully!</h6>
+            <p class="mb-2">Your PDF has been digitally signed.</p>
+            <ul class="mb-3">
+                <li><strong>Filename:</strong> ${data.filename}</li>
+                <li><strong>Signature:</strong> M.ARUL</li>
+                <li><strong>Date:</strong> ${currentDate}</li>
+                <li><strong>Timezone:</strong> Chennai GMT (+05:30)</li>
+                <li><strong>Multi-page Signing:</strong> ${data.multi_page_signing ? 'Enabled' : 'Disabled'}</li>
+            </ul>
+        `;
+    }
+
+    resultSection.style.display = 'block';
+    document.getElementById('error-section').style.display = 'none';
+}
+
+function showBatchSuccess(data) {
+    const resultSection = document.getElementById('result-section');
+    const alertDiv = resultSection.querySelector('.alert');
+
+    alertDiv.innerHTML = `
+        <h6><i class="fas fa-check-circle me-2"></i>Batch PDF Signing Completed!</h6>
+        <p class="mb-2">Batch processing results:</p>
+        <ul class="mb-3">
+            <li><strong>Total Files:</strong> ${data.total_files}</li>
+            <li><strong>Successfully Signed:</strong> ${data.successful_files}</li>
+            <li><strong>Failed:</strong> ${data.failed_files}</li>
+            <li><strong>Multi-page Signing:</strong> ${document.getElementById('apply-to-all-pages').checked ? 'Enabled' : 'Disabled'}</li>
+            <li><strong>Save Location:</strong> ${selectedSaveLocation || 'Default location'}</li>
+        </ul>
+        ${data.processed_files && data.processed_files.length > 0 ? `
+            <div class="mb-3">
+                <strong>Processed Files:</strong>
+                <ul class="mt-2">
+                    ${data.processed_files.map(file => `
+                        <li>
+                            <strong>${file.filename}</strong> -
+                            <span class="badge ${file.status === 'success' ? 'bg-success' : 'bg-danger'}">
+                                ${file.status === 'success' ? '✅ Success' : '❌ Failed'}
+                            </span>
+                            ${file.status === 'success' && file.file_size ? `<br><small class="text-muted">Size: ${(file.file_size / 1024).toFixed(1)} KB</small>` : ''}
+                            ${file.status === 'success' && file.save_location ? `<br><small class="text-info"><i class="fas fa-folder me-1"></i>Saved to: ${file.save_location}</small>` : ''}
+                            ${file.status === 'failed' && file.error ? `<br><small class="text-danger">${file.error}</small>` : ''}
+                            ${file.status === 'success' && file.download_url ? `<br><a href="${file.download_url}" class="btn btn-sm btn-outline-primary mt-1"><i class="fas fa-download me-1"></i>Download</a>` : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        ` : ''}
+        ${data.errors && data.errors.length > 0 ? `
+            <div class="mb-3">
+                <strong>Errors:</strong>
+                <ul class="mt-2 text-danger">
+                    ${data.errors.map(error => `<li>${error}</li>`).join('')}
+                </ul>
+            </div>
+        ` : ''}
+        <div class="alert alert-info mt-3">
+            <i class="fas fa-info-circle me-2"></i>
+            Files have been automatically saved to your specified location.
+        </div>
+    `;
+
+    resultSection.style.display = 'block';
+    document.getElementById('error-section').style.display = 'none';
+}
+
+function showError(message) {
+    document.getElementById('error-message').textContent = message;
+    document.getElementById('error-section').style.display = 'block';
+    document.getElementById('result-section').style.display = 'none';
+}
+</script>
+{% endblock %}

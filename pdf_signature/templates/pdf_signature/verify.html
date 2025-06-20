@@ -1,0 +1,127 @@
+{% extends 'pdf_signature/base.html' %}
+
+{% block title %}Verify PDF Signature - PDF Signature Tool{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h2 class="mb-4">Verify PDF Signature</h2>
+        
+        <div class="card">
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data" id="verify-form">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="pdf_file" class="form-label">Select PDF File to Verify</label>
+                        <input type="file" class="form-control" id="pdf_file" name="pdf_file" accept=".pdf" required>
+                        <div class="form-text">Select a signed PDF file to verify its signature.</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary" id="verify-button">
+                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            Verify Signature
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        {% if verification_result %}
+        <div class="card mt-4">
+            <div class="card-header">
+                Verification Results for <strong>{{ filename }}</strong>
+            </div>
+            <div class="card-body">
+                {% if verification_result.status == 'signed_valid' %}
+                    <div class="alert alert-success">
+                        <h5 class="alert-heading">✓ Signature is Valid</h5>
+                        <p class="mb-0">This document has been digitally signed and the signature is valid.</p>
+                    </div>
+                    
+                    <h5>Signature Details:</h5>
+                    <dl class="row">
+                        <dt class="col-sm-3">Signer</dt>
+                        <dd class="col-sm-9">{{ verification_result.signer_name|default:"Unknown" }}</dd>
+                        
+                        <dt class="col-sm-3">Signing Time</dt>
+                        <dd class="col-sm-9">{{ verification_result.signing_time|default:"Unknown" }}</dd>
+                        
+                        <dt class="col-sm-3">Certificate Issuer</dt>
+                        <dd class="col-sm-9">{{ verification_result.issuer|default:"Unknown" }}</dd>
+                        
+                        <dt class="col-sm-3">Certificate Validity</dt>
+                        <dd class="col-sm-9">
+                            {% if verification_result.cert_valid %}
+                                <span class="text-success">✓ Certificate is valid</span>
+                            {% else %}
+                                <span class="text-danger">✗ Certificate is not valid</span>
+                            {% endif %}
+                        </dd>
+                    </dl>
+                    
+                {% elif verification_result.status == 'signed_invalid' %}
+                    <div class="alert alert-danger">
+                        <h5 class="alert-heading">✗ Signature is Invalid</h5>
+                        <p class="mb-0">This document has been modified after signing or the signature is corrupted.</p>
+                    </div>
+                
+                {% elif verification_result.status == 'unsigned' %}
+                    <div class="alert alert-warning">
+                        <h5 class="alert-heading">No Digital Signature Found</h5>
+                        <p class="mb-0">This document does not contain a digital signature.</p>
+                    </div>
+                
+                {% else %}
+                    <div class="alert alert-danger">
+                        <h5 class="alert-heading">Error Verifying Signature</h5>
+                        <p class="mb-0">{{ verification_result.message|default:"An unknown error occurred while verifying the signature." }}</p>
+                    </div>
+                {% endif %}
+                
+                {% if verification_result.details %}
+                    <div class="mt-3">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" 
+                                data-bs-target="#verificationDetails" aria-expanded="false">
+                            Show Technical Details
+                        </button>
+                        <div class="collapse mt-2" id="verificationDetails">
+                            <div class="card card-body bg-light">
+                                <pre class="mb-0">{{ verification_result.details|pprint }}</pre>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const verifyForm = document.getElementById('verify-form');
+    const verifyButton = document.getElementById('verify-button');
+    const spinner = verifyButton.querySelector('.spinner-border');
+    
+    verifyForm.addEventListener('submit', function() {
+        verifyButton.disabled = true;
+        spinner.classList.remove('d-none');
+        verifyButton.innerHTML = 'Verifying...';
+    });
+    
+    // Show file name when selected
+    const fileInput = document.getElementById('pdf_file');
+    fileInput.addEventListener('change', function() {
+        const fileName = this.files[0]?.name || 'No file chosen';
+        const label = this.nextElementSibling;
+        if (label && label.classList.contains('form-text')) {
+            label.textContent = fileName;
+        }
+    });
+});
+</script>
+{% endblock %}
